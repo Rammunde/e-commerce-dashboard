@@ -1,9 +1,12 @@
 const ecomDB = require("../db/dbConnection");
+const { ObjectId } = require('mongodb');
 
 module.exports = {
   registerUser,
   getAllUsers,
   loginUser,
+  deleteUser,
+  editUser
 };
 
 async function registerUser(req, res) {
@@ -23,8 +26,11 @@ async function getAllUsers(req, res) {
   try {
     const collection = await ecomDB.connectUsersDB();
 
+    // const users = await collection
+    //   .find({}, { projection: { password: 0 } })
+    //   .toArray();
     const users = await collection
-      .find({}, { projection: { password: 0 } })
+      .find({})
       .toArray();
 
     let totalCount = 0;
@@ -41,25 +47,116 @@ async function getAllUsers(req, res) {
     res.status(500).json({ error: "Internal Server Error" });
   }
 }
+
+
+async function deleteUser(req, res) {
+  const userId = req.params.id;
+  console.log("userId", userId);
+
+  try {
+    const collection = await ecomDB.connectUsersDB();
+    // const result = await collection.deleteOne({ _id: userId});
+    const isExist = await collection.findOne({ _id: new ObjectId(userId) });
+    if (isExist) {
+      await collection.deleteOne({
+        _id: new ObjectId(userId),
+      });
+      res.status(200).json({ err: false, msg: "User deleted successfully" });
+    } else {
+      res.status(200).json({ err: true, msg: "User not exist" });
+    }
+  } catch (error) {
+    console.error("Error while deleting user:", error);
+    res.status(500).json({ err: true, msg: "Internal Server Error" });
+  }
+}
+
+async function editUser(req, res) {
+  const {
+    userId,
+    firstName,
+    lastName,
+    username,
+    password,
+    email,
+    mobile } = req.body;
+
+  const collection = await ecomDB.connectUsersDB();
+  if (!userId) {
+    return res.status(400).json({ err: true, msg: 'Invalid user ID' });
+  }
+
+  const userUpdate = {
+    firstName,
+    lastName,
+    username,
+    password,
+    email,
+    mobile
+  };
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(userId) },
+    { $set: userUpdate }
+  );
+
+  if (result.modifiedCount > 0) {
+    res.status(200).json({ err: false, msg: "User Updated successfully" });
+  }
+  else {
+    res.status(500).json({ err: true, msg: "Internal Server Error" });
+  }
+}
+
 async function loginUser(req, res) {
+  const { username, password } = req.body;
+
+  const normalizedUsername = username.toLowerCase();
+  const normalizedPassword = password.toLowerCase();
+
+  const predefinedUsername = 'admin';
+  const predefinedPassword = 'admin@123';
+
   try {
     const collection = await ecomDB.connectUsersDB();
 
-    const { username, password } = req.body;
+    if (normalizedUsername === predefinedUsername && normalizedPassword === predefinedPassword) {
+      const existingUser = await collection.findOne({ username: predefinedUsername });
+      
+      if (!existingUser) {
+        const newUser = {
+          firstName: "Ram",
+          lastName: "Munde",
+          email: "rammunde9834@gmail.com",
+          username: predefinedUsername,
+          password: predefinedPassword,
+          mobile:"9834631497",
+          role: "Admin"
+        };
+        await collection.insertOne(newUser);
+      }
 
-    // Query the database to find a user with the provided username and password
-    const user = await collection.findOne({ username, password });
+      const user = await collection.findOne({
+        username: predefinedUsername,
+        password: predefinedPassword
+      });
 
-    let logedInUser = [];
-    if (user) {
-      logedInUser = user;
-      res.status(200).json({ data: logedInUser, err: false, msg: "User Login successfully" });
+      if (user) {
+        res.status(200).json({ data: user, err: false, msg: "User logged in successfully" });
+      } else {
+        res.status(401).json({ data: null, err: true, msg: "Please enter correct credentials" });
+      }
     } else {
-      // If no user found, send an error message
-      res.status(401).json({ data: logedInUser, err: true, msg: "Please enter correct credentials" });
+      const user = await collection.findOne({ username, password });
+      
+      if (user) {
+        res.status(200).json({ data: user, err: false, msg: "User logged in successfully" });
+      } else {
+        res.status(401).json({ data: null, err: true, msg: "Please enter correct credentials" });
+      }
     }
   } catch (error) {
-    console.error("Error logging in:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('Error while logging in:', error);
+    res.status(500).json({ err: true, msg: 'Internal Server Error' });
   }
 }

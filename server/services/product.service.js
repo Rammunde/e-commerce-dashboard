@@ -8,13 +8,14 @@ module.exports = {
 };
 
 async function addProduct(req, res) {
-  const { name, price, company, userId } = req.body;
+  const { name, price, company, userId, productDescription } = req.body;
 
   let _doc = {
     name: name,
     price: price,
     company: company,
     userId: userId,
+    productDescription: productDescription,
     registrationDate: new Date(),
   };
 
